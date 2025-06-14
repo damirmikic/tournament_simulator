@@ -457,8 +457,34 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // --- Simulated Group Odds Tab Logic ---
-    function calculateOddWithMargin(trueProb, marginDec) { if (trueProb <= 0) return "N/A"; const oddNoMargin = 1 / trueProb; return (1 / (trueProb + ((1-trueProb)/oddNoMargin * marginDec))).toFixed(2); }
+    function calculateOddWithMargin(trueProb, marginDec) {
+        if (trueProb <= 0) return "N/A";
+        const oddNoMargin = 1 / trueProb;
+        // This is a flawed but simple margin calculation for single-outcome markets.
+        // It will be replaced if a full market overround calculation is implemented.
+        return (1 / (trueProb + ((1 - trueProb) / oddNoMargin * marginDec))).toFixed(2);
+    }
     
+    function calculateTwoWayMarketOdds(prob1, prob2, marginDecimal) {
+        if (prob1 <= 0 && prob2 <= 0) return { odd1: "N/A", odd2: "N/A" };
+
+        const totalProb = prob1 + prob2;
+        if (totalProb === 0) return { odd1: "N/A", odd2: "N/A" };
+        
+        // The overround is the bookmaker's total book percentage.
+        // A 5% margin means a 105% book (overround = 1.05).
+        const overround = 1 + marginDecimal;
+
+        // Scale the original probabilities up so that their sum equals the desired overround.
+        const newProb1 = prob1 * overround / totalProb;
+        const newProb2 = prob2 * overround / totalProb;
+
+        const odd1 = newProb1 > 0 ? (1 / newProb1).toFixed(2) : "N/A";
+        const odd2 = newProb2 > 0 ? (1 / newProb2).toFixed(2) : "N/A";
+
+        return { odd1, odd2 };
+    }
+
     function populateSimGroupSelect() {
         simGroupSelectEl.innerHTML = '<option value="">-- Select Group --</option>'; 
         simTeamSelectEl.innerHTML = '<option value="">-- Select Group First --</option>'; 
@@ -657,14 +683,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const displayAvgAndOU = (dataKey, expectedElId, resultElId) => {
             const resultElement = document.getElementById(resultElId);
             const expectedElement = document.getElementById(expectedElId);
-            const ouMarginDecimal = parseFloat(document.getElementById('ouBookieMargin').value) / 100;
+            const ouBookieMarginEl = document.getElementById('ouBookieMargin');
+            const ouMarginDecimal = parseFloat(ouBookieMarginEl.value) / 100;
+            if (isNaN(ouMarginDecimal) || ouMarginDecimal < 0) return;
 
             if (groupData[dataKey] && groupData[dataKey].length > 0 && currentNumSims > 0) {
                 const avg = groupData[dataKey].reduce((a, b) => a + b, 0) / currentNumSims;
                 expectedElement.textContent = `(Avg: ${avg.toFixed(2)})`;
 
                 const centerLine = Math.round(avg) + 0.5;
-                const lines = [centerLine - 1, centerLine, centerLine + 1].filter(l => l > 0); 
+                const lines = [centerLine - 1, centerLine, centerLine + 1].filter(l => l > 0.5); 
                 let ouHtml = `<table class="w-full text-center"><thead><tr class="text-gray-500"><th class="w-1/3">Line</th><th class="w-1/3">Over</th><th class="w-1/3">Under</th></tr></thead><tbody>`;
 
                 lines.forEach(line => {
@@ -672,8 +700,9 @@ document.addEventListener('DOMContentLoaded', () => {
                      const underCount = groupData[dataKey].filter(val => val < line).length;
                      const probOver = overCount / currentNumSims;
                      const probUnder = underCount / currentNumSims;
-                     const oddOver = calculateOddWithMargin(probOver, mainMarginDecimal);
-                     const oddUnder = calculateOddWithMargin(probUnder, mainMarginDecimal);
+                     
+                     const { odd1: oddOver, odd2: oddUnder } = calculateTwoWayMarketOdds(probOver, probUnder, ouMarginDecimal);
+
                      ouHtml += `<tr><td>${line.toFixed(1)}</td><td>${oddOver}</td><td>${oddUnder}</td></tr>`;
                 });
                  ouHtml += `</tbody></table>`;
@@ -867,8 +896,7 @@ B Croatia vs Italy 3.00 3.10 2.60 1.55 2.40`;
         [5.5, 6.5, 7.5].forEach(line => {
             const overProb = ptsSims.filter(p => p > line).length / currentNumSims;
             const underProb = ptsSims.filter(p => p < line).length / currentNumSims;
-            const overOdd = calculateOddWithMargin(overProb, marginDecimal);
-            const underOdd = calculateOddWithMargin(underProb, marginDecimal);
+            const { odd1: overOdd, odd2: underOdd } = calculateTwoWayMarketOdds(overProb, underProb, marginDecimal);
             csvContent += toCsvRow(`Osvojenih bodova u grupi`, line, overOdd, underOdd);
         });
 
@@ -922,7 +950,8 @@ B Croatia vs Italy 3.00 3.10 2.60 1.55 2.40`;
             [4.5, 6.5, 7.5].forEach(line => {
                 const overProb = firstPtsSims.filter(p => p > line).length / currentNumSims;
                 const underProb = firstPtsSims.filter(p => p < line).length / currentNumSims;
-                csvContent += toCsvRow('Uk. bodova', 'Prvoplasirani tim', line, calculateOddWithMargin(overProb, marginDecimal), calculateOddWithMargin(underProb, marginDecimal));
+                const { odd1: overOdd, odd2: underOdd } = calculateTwoWayMarketOdds(overProb, underProb, marginDecimal);
+                csvContent += toCsvRow('Uk. bodova', 'Prvoplasirani tim', line, overOdd, underOdd);
             });
         }
         const fourthPtsSims = groupData.fourthPlacePtsSims || [];
@@ -930,7 +959,8 @@ B Croatia vs Italy 3.00 3.10 2.60 1.55 2.40`;
              [0.5, 1.5, 2.5].forEach(line => {
                 const overProb = fourthPtsSims.filter(p => p > line).length / currentNumSims;
                 const underProb = fourthPtsSims.filter(p => p < line).length / currentNumSims;
-                csvContent += toCsvRow('Uk. bodova', 'Poslednjeplasirani tim', line, calculateOddWithMargin(overProb, marginDecimal), calculateOddWithMargin(underProb, marginDecimal));
+                 const { odd1: overOdd, odd2: underOdd } = calculateTwoWayMarketOdds(overProb, underProb, marginDecimal);
+                csvContent += toCsvRow('Uk. bodova', 'Poslednjeplasirani tim', line, overOdd, underOdd);
             });
         }
 
