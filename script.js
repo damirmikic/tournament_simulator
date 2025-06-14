@@ -1472,4 +1472,3 @@ B Spain vs Italy 2.20 3.20 3.60 1.65 2.20
 B Albania vs Spain 10.00 5.50 1.30 2.00 1.80
 B Croatia vs Italy 3.00 3.10 2.60 1.55 2.40`;
 
-</script>
