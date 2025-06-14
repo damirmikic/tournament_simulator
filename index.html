@@ -9,129 +9,150 @@
 </head>
 <body class="bg-gray-100 min-h-screen p-4 md:p-8">
     <div class="container mx-auto max-w-5xl bg-white p-6 rounded-lg shadow-xl">
-        <header class="mb-6 text-center">
-            <h1 class="text-3xl font-bold text-gray-700">Football Competition Analysis Tool</h1>
+        <header class="mb-6 text-center relative">
+            <h1 class="text-3xl font-bold text-gray-700" data-lang="appTitle">Football Competition Analysis Tool</h1>
+            <div id="languageSwitcher" class="absolute top-0 right-0">
+                <button id="langEnButton" class="px-2 py-1 text-sm border rounded-l-md">EN</button>
+                <button id="langSrButton" class="px-2 py-1 text-sm border-t border-b border-r rounded-r-md">SR</button>
+            </div>
         </header>
 
         <div class="flex mb-0">
-            <button class="tab-button active" onclick="openTab(event, 'simulatorTab')">Group Simulator</button>
-            <button class="tab-button" onclick="openTab(event, 'oddsCalculatorTab')">Simulated Group Odds</button>
+            <button class="tab-button active" onclick="openTab(event, 'simulatorTab')" data-lang="tabGroupSimulator">Group Simulator</button>
+            <button class="tab-button" onclick="openTab(event, 'oddsCalculatorTab')" data-lang="tabSimulatedOdds">Simulated Group Odds</button>
         </div>
 
         <div id="simulatorTab" class="tab-content active">
-            <p class="text-gray-600 mb-4 text-sm">Enter match odds to simulate group outcomes and analyze probabilities. Lambdas are derived using an iterative xG calculation based on O/U and Home/Away odds.</p>
-            <div class="mb-4">
-                <label for="csvFileInput" class="file-input-button">Import CSV File</label>
+            <p class="text-gray-600 mb-4 text-sm" data-lang="appDescription">Enter match odds to simulate group outcomes and analyze probabilities. Lambdas are derived using an iterative xG calculation based on O/U and Home/Away odds.</p>
+            <div class="mb-4 flex flex-wrap gap-2">
+                <label for="csvFileInput" class="file-input-button" data-lang="importCsvButton">Import CSV File</label>
                 <input type="file" id="csvFileInput" class="hidden-file-input" accept=".csv">
-                <span id="csvFileName" class="ml-2 text-sm text-gray-500">No file selected.</span>
-                <p class="mt-1 text-xs text-gray-500">
-                    CSV Delimiters: comma, semicolon, or tab. Each row a match.<br/>
-                    Style 1 (with 'vs'): GROUP,TEAM_A_FIELD(S),vs,TEAM_B_FIELD(S),ODD1,ODDX,ODD2,ODD_U2.5,ODD_O2.5<br/>
-                    Style 2 (without 'vs'): GROUP,TEAM_A_FIELD,TEAM_B_FIELD,ODD1,ODDX,ODD2,ODD_U2.5,ODD_O2.5 (TEAM_A/B are single fields)<br/>
-                    If team names contain the delimiter, quote them in the CSV (e.g., "Team, Inc.").
-                </p>
+                <span id="csvFileName" class="ml-2 text-sm text-gray-500 self-center" data-lang-text="noFileSelected">No file selected.</span>
+            </div>
+             <div class="mb-4 flex flex-wrap gap-2 items-center">
+                <button id="saveToFileButton" class="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-md shadow-md transition duration-150 ease-in-out text-sm" data-lang="saveToFileButton">Save to File</button>
+                <label for="loadFromFileInput" class="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-md shadow-md transition duration-150 ease-in-out text-sm cursor-pointer" data-lang="loadFromFileButton">Load from File</label>
+                <input type="file" id="loadFromFileInput" class="hidden-file-input" accept=".json">
+                <div class="border-l border-gray-300 h-6 mx-2"></div>
+                <button id="saveToBrowserButton" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-md shadow-md transition duration-150 ease-in-out text-sm" data-lang="saveToBrowserButton">Save to Browser</button>
+                <button id="loadFromBrowserButton" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-md shadow-md transition duration-150 ease-in-out text-sm" data-lang="loadFromBrowserButton">Load from Browser</button>
+            </div>
+
+            <div class="mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
+                <label class="block text-sm font-medium text-gray-700 mb-2" data-lang="tiebreakerTitle">Tie-Breaking Rules</label>
+                <div class="flex flex-col space-y-1">
+                    <label class="inline-flex items-center">
+                        <input type="radio" class="form-radio" name="tiebreaker" value="standard" checked>
+                        <span class="ml-2 text-xs" data-lang="tiebreakerStandard">Standard (Overall GD > H2H)</span>
+                    </label>
+                    <label class="inline-flex items-center">
+                        <input type="radio" class="form-radio" name="tiebreaker" value="h2h">
+                        <span class="ml-2 text-xs" data-lang="tiebreakerH2H">Head-to-Head Priority</span>
+                    </label>
+                    <label class="inline-flex items-center">
+                        <input type="radio" class="form-radio" name="tiebreaker" value="simple">
+                        <span class="ml-2 text-xs" data-lang="tiebreakerSimple">Simple (Overall Only)</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="mb-6">
+                <label for="matchData" class="block text-sm font-medium text-gray-700 mb-1" data-lang="matchDataLabel">Match Data (Odds Input):</label>
+                <textarea id="matchData" rows="10" class="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" data-lang-placeholder="matchDataPlaceholder"></textarea>
             </div>
             <div class="mb-6">
-                <label for="matchData" class="block text-sm font-medium text-gray-700 mb-1">Match Data (Odds Input):</label>
-                <textarea id="matchData" rows="10" class="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="Paste match data here or import from CSV. Each line: GROUP TEAM_A vs TEAM_B ODDS_1 ODDS_X ODDS_2 ODDS_UNDER_2.5 ODDS_OVER_2.5&#10;Example: A Al Ahly vs Inter Miami 3.9 3.85 1.85 1.93 1.87"></textarea>
-            </div>
-            <div class="mb-6">
-                <label for="numSimulations" class="block text-sm font-medium text-gray-700 mb-1">Number of Simulations:</label>
+                <label for="numSimulations" class="block text-sm font-medium text-gray-700 mb-1" data-lang="numSimulationsLabel">Number of Simulations:</label>
                 <input type="number" id="numSimulations" value="10000" class="w-full md:w-1/3 p-3 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
             </div>
             <div class="flex flex-col sm:flex-row gap-4 mb-6">
-                <button id="parseButton" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-md shadow-md transition duration-150 ease-in-out">1. Parse & Validate Data</button>
-                <button id="runButton" class="flex-1 bg-green-500 hover:bg-green-600 text-white font-semibold py-3 px-4 rounded-md shadow-md transition duration-150 ease-in-out" disabled>2. Run Simulation</button>
-                <button id="clearButton" class="flex-1 bg-red-500 hover:bg-red-600 text-white font-semibold py-3 px-4 rounded-md shadow-md transition duration-150 ease-in-out">Clear All</button>
+                <button id="parseButton" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-md shadow-md transition duration-150 ease-in-out" data-lang="parseButton">1. Parse & Validate Data</button>
+                <button id="runButton" class="flex-1 bg-green-500 hover:bg-green-600 text-white font-semibold py-3 px-4 rounded-md shadow-md transition duration-150 ease-in-out" disabled data-lang="runButton">2. Run Simulation</button>
+                <button id="clearButton" class="flex-1 bg-red-500 hover:bg-red-600 text-white font-semibold py-3 px-4 rounded-md shadow-md transition duration-150 ease-in-out" data-lang="clearButton">Clear All</button>
             </div>
             <div id="statusArea" class="mb-4 text-sm text-gray-600"></div>
             <div id="progressContainer" class="hidden my-4 w-full bg-gray-200 rounded-full h-6">
                 <div id="progressBar" class="bg-blue-600 h-6 text-xs font-medium text-blue-100 text-center p-1 leading-none rounded-full" style="width: 0%"> 0% </div>
             </div>
             <div id="resultsArea" class="bg-gray-50 p-4 rounded-md shadow-inner max-h-[70vh] overflow-y-auto">
-                <h2 class="text-xl font-semibold text-gray-700 mb-3">Simulation Results:</h2>
-                <div id="resultsContent" class="text-sm"> Results will appear here... </div>
+                <h2 class="text-xl font-semibold text-gray-700 mb-3" data-lang="simResultsTitle">Simulation Results:</h2>
+                <div id="resultsContent" class="text-sm"></div>
             </div>
         </div>
 
         <div id="oddsCalculatorTab" class="tab-content">
-             <h2 class="text-xl font-semibold text-gray-700 mb-3">Simulated Group Odds</h2>
-            <p class="text-gray-600 mb-4 text-sm">View odds derived from the simulation results. Select a group and apply a margin.</p>
+             <h2 class="text-xl font-semibold text-gray-700 mb-3" data-lang="simulatedOddsTitle">Simulated Group Odds</h2>
+            <p class="text-gray-600 mb-4 text-sm" data-lang="simulatedOddsDescription">View odds derived from the simulation results. Select a group and apply a margin.</p>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div>
-                    <label for="simGroupSelect" class="block text-sm font-medium text-gray-700 mb-1">Select Group:</label>
-                    <select id="simGroupSelect" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
-                        <option value="">-- Run Simulation First --</option>
-                    </select>
+                    <label for="simGroupSelect" class="block text-sm font-medium text-gray-700 mb-1" data-lang="selectGroupLabel">Select Group:</label>
+                    <select id="simGroupSelect" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></select>
                 </div>
                 <div>
-                    <label for="simBookieMargin" class="block text-sm font-medium text-gray-700 mb-1">Main Bookmaker Margin (%):</label>
+                    <label for="simBookieMargin" class="block text-sm font-medium text-gray-700 mb-1" data-lang="marginLabel">Main Bookmaker Margin (%):</label>
                     <input type="number" id="simBookieMargin" step="0.1" min="0" value="5" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="e.g., 5 for 5%">
                 </div>
             </div>
             <div class="flex gap-4 mb-4">
-                <button id="showSimulatedOddsButton" class="bg-purple-500 hover:bg-purple-600 text-white font-semibold py-3 px-4 rounded-md shadow-md transition duration-150 ease-in-out">Show/Refresh Market Odds</button>
-                <button id="generateGroupCsvButton" class="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-3 px-4 rounded-md shadow-md transition duration-150 ease-in-out" disabled>Generate Group Odds CSV</button>
+                <button id="showSimulatedOddsButton" class="bg-purple-500 hover:bg-purple-600 text-white font-semibold py-3 px-4 rounded-md shadow-md transition duration-150 ease-in-out" data-lang="showOddsButton">Show/Refresh Market Odds</button>
+                <button id="generateGroupCsvButton" class="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-3 px-4 rounded-md shadow-md transition duration-150 ease-in-out" disabled data-lang="generateGroupCsvButton">Generate Group Odds CSV</button>
             </div>
             <div id="simulatedOddsStatus" class="text-sm text-red-500 mb-4"></div>
             
             <div id="calculatedOddsResultContainer" class="mt-2 p-1 bg-gray-50 rounded-md shadow-inner max-h-[60vh] overflow-y-auto mb-6">
-                <div id="calculatedOddsResultContent" class="text-sm"> Select a group and click "Show/Refresh Market Odds" to see standard market results. </div>
+                <div id="calculatedOddsResultContent" class="text-sm"></div>
             </div>
 
             <hr class="my-6">
-            <h3 class="text-lg font-semibold text-gray-700 mb-3">Over/Under Line Odds</h3>
+            <h3 class="text-lg font-semibold text-gray-700 mb-3" data-lang="ouOddsTitle">Over/Under Line Odds</h3>
             <div class="mb-4">
-                 <label for="ouBookieMargin" class="block text-sm font-medium text-gray-700 mb-1">Over/Under Specific Margin (%):</label>
+                 <label for="ouBookieMargin" class="block text-sm font-medium text-gray-700 mb-1" data-lang="ouMarginLabel">Over/Under Specific Margin (%):</label>
                  <input type="number" id="ouBookieMargin" step="0.1" min="0" value="5" class="w-full md:w-1/3 p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="e.g., 5 for 5%">
             </div>
             <div id="overUnderMarketsContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div class="over-under-section">
-                    <h5>Total Group Goals O/U <span id="expectedTotalGroupGoals" class="expected-value-info"></span></h5>
+                    <h5 data-lang="ouTotalGoals">Total Group Goals O/U <span id="expectedTotalGroupGoals" class="expected-value-info"></span></h5>
                     <div id="ouTotalGroupGoalsResult" class="text-xs"></div>
                 </div>
                 <div class="over-under-section">
-                    <h5>Points of 1st Placed Team O/U <span id="expectedFirstPlacePts" class="expected-value-info"></span></h5>
+                    <h5 data-lang="ou1stPoints">Points of 1st Placed Team O/U <span id="expectedFirstPlacePts" class="expected-value-info"></span></h5>
                     <div id="ouFirstPlacePtsResult" class="text-xs"></div>
                 </div>
                 <div class="over-under-section">
-                    <h5>Points of 4th Placed Team O/U <span id="expectedFourthPlacePts" class="expected-value-info"></span></h5>
+                    <h5 data-lang="ou4thPoints">Points of 4th Placed Team O/U <span id="expectedFourthPlacePts" class="expected-value-info"></span></h5>
                     <div id="ouFourthPlacePtsResult" class="text-xs"></div>
                 </div>
                 <div class="over-under-section">
-                    <h5>Goals For by 1st Placed Team O/U <span id="expectedFirstPlaceGF" class="expected-value-info"></span></h5>
+                    <h5 data-lang="ou1stGF">Goals For by 1st Placed Team O/U <span id="expectedFirstPlaceGF" class="expected-value-info"></span></h5>
                     <div id="ouFirstPlaceGFResult" class="text-xs"></div>
                 </div>
                 <div class="over-under-section">
-                    <h5>Goals For by 4th Placed Team O/U <span id="expectedFourthPlaceGF" class="expected-value-info"></span></h5>
+                    <h5 data-lang="ou4thGF">Goals For by 4th Placed Team O/U <span id="expectedFourthPlaceGF" class="expected-value-info"></span></h5>
                     <div id="ouFourthPlaceGFResult" class="text-xs"></div>
                 </div>
             </div>
 
 
             <hr class="my-6">
-            <h3 class="text-lg font-semibold text-gray-700 mb-3">Custom Team Prop Odds</h3>
+            <h3 class="text-lg font-semibold text-gray-700 mb-3" data-lang="customPropsTitle">Custom Team Prop Odds</h3>
              <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
                 <div>
-                    <label for="simTeamSelect" class="block text-sm font-medium text-gray-700 mb-1">Select Team (from chosen group):</label>
-                    <select id="simTeamSelect" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" disabled>
-                        <option value="">-- Select Group First --</option>
-                    </select>
+                    <label for="simTeamSelect" class="block text-sm font-medium text-gray-700 mb-1" data-lang="selectTeamLabel">Select Team (from chosen group):</label>
+                    <select id="simTeamSelect" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" disabled></select>
                 </div>
                 <div>
-                    <button id="generateTeamCsvButton" class="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-2 px-4 rounded-md shadow-md transition duration-150 ease-in-out mt-6" disabled>Generate Team CSV</button>
+                    <button id="generateTeamCsvButton" class="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-2 px-4 rounded-md shadow-md transition duration-150 ease-in-out mt-6" disabled data-lang="generateTeamCsvButton">Generate Team CSV</button>
                 </div>
             </div>
             <div id="customProbInputsContainer" class="hidden">
                  <div class="flex flex-wrap items-center gap-2 text-sm mb-4 p-3 bg-indigo-50 rounded-md">
-                    <span class="font-medium">Calculate P(</span>
+                    <span class="font-medium" data-lang="calculateP">Calculate P(</span>
                     <select id="simCustomStatType" class="p-1 border rounded text-xs">
-                        <option value="ptsSims">Points</option>
-                        <option value="winsSims">Wins</option>
-                        <option value="drawsSims">Draws</option>
-                        <option value="lossesSims">Losses</option>
-                        <option value="gfSims">GF</option>
-                        <option value="gaSims">GA</option>
+                        <option value="ptsSims" data-lang="statPoints">Points</option>
+                        <option value="winsSims" data-lang="statWins">Wins</option>
+                        <option value="drawsSims" data-lang="statDraws">Draws</option>
+                        <option value="lossesSims" data-lang="statLosses">Losses</option>
+                        <option value="gfSims" data-lang="statGF">GF</option>
+                        <option value="gaSims" data-lang="statGA">GA</option>
                     </select>
                     <select id="simCustomOperator" class="p-1 border rounded text-xs">
                         <option value=">">&gt;</option><option value=">=">&ge;</option><option value="<">&lt;</option><option value="<=">&le;</option><option value="==">==</option><option value="between">Between</option>
@@ -139,13 +160,13 @@
                     <input type="number" step="0.1" id="simCustomValue1" class="p-1 border rounded w-20 text-xs" placeholder="Value 1">
                     <input type="number" step="0.1" id="simCustomValue2" class="p-1 border rounded w-20 text-xs hidden" placeholder="Value 2">
                     <span class="font-medium">)</span>
-                    <button id="calculateCustomProbAndOddButton" class="bg-teal-500 hover:bg-teal-600 text-white px-3 py-1 rounded text-xs font-semibold">Calc Prop Odd</button>
+                    <button id="calculateCustomProbAndOddButton" class="bg-teal-500 hover:bg-teal-600 text-white px-3 py-1 rounded text-xs font-semibold" data-lang="calcPropOddButton">Calc Prop Odd</button>
                 </div>
-                <div id="customProbAndOddResultArea" class="text-sm p-3 bg-gray-100 rounded-md"> Custom prop odds will appear here... </div>
+                <div id="customProbAndOddResultArea" class="text-sm p-3 bg-gray-100 rounded-md"></div>
             </div>
             
             <div id="teamStatDistributionContainer" class="mt-6 hidden">
-                <h3 class="text-lg font-semibold text-gray-700 mb-3">Team Stat Distribution</h3>
+                <h3 class="text-lg font-semibold text-gray-700 mb-3" data-lang="teamStatDistTitle">Team Stat Distribution</h3>
                 <div id="teamStatDistributionContent" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[60vh] overflow-y-auto pr-2"></div>
             </div>
         </div>
