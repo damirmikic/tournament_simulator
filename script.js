@@ -15,15 +15,14 @@ function openTab(event, tabName) {
     event.currentTarget.classList.add("active");
 }
 document.addEventListener('DOMContentLoaded', () => { 
-    // Attaching event listeners after the DOM is fully loaded.
-    
     // --- Global Variables ---
     let parsedMatches = [], allTeams = new Set(), groupedMatches = {}, groupTeamNames = {}, simulationAggStats = {}, currentNumSims = 0;
+    let currentLang = 'en';
 
     // --- DOM Elements ---
     const matchDataEl = document.getElementById('matchData'), numSimulationsEl = document.getElementById('numSimulations');
     const parseButtonEl = document.getElementById('parseButton'), runButtonEl = document.getElementById('runButton'), clearButtonEl = document.getElementById('clearButton');
-    const statusAreaEl = document.getElementById('statusArea'), loaderEl = document.getElementById('loader'), resultsContentEl = document.getElementById('resultsContent');
+    const statusAreaEl = document.getElementById('statusArea'), resultsContentEl = document.getElementById('resultsContent');
     const csvFileInputEl = document.getElementById('csvFileInput'), csvFileNameEl = document.getElementById('csvFileName');
     const simGroupSelectEl = document.getElementById('simGroupSelect'), simBookieMarginEl = document.getElementById('simBookieMargin');
     const showSimulatedOddsButtonEl = document.getElementById('showSimulatedOddsButton');
@@ -36,8 +35,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const customProbAndOddResultAreaEl = document.getElementById('customProbAndOddResultArea');
     const generateTeamCsvButtonEl = document.getElementById('generateTeamCsvButton'); 
     const generateGroupCsvButtonEl = document.getElementById('generateGroupCsvButton');
+    const progressContainerEl = document.getElementById('progressContainer');
+    const progressBarEl = document.getElementById('progressBar');
     
-    document.querySelector('.tab-button').click(); 
+    document.querySelector('.tab-button').click();
 
     // --- CSV File Input ---
     csvFileInputEl.addEventListener('change', (event) => {
@@ -115,96 +116,66 @@ document.addEventListener('DOMContentLoaded', () => {
     function calculateExpectedGoalsFromOdds(overPrice, underPrice, homePrice, awayPrice) {
         const normalisedUnder = (1 / underPrice) / ((1 / overPrice) + (1 / underPrice));
         const normalisedHomeNoDraw = (1 / homePrice) / ((1 / awayPrice) + (1 / homePrice));
-
-        let totalGoals = 2.5; 
-        let supremacy = 0;    
-
-        let homeExpectedGoals, awayExpectedGoals;
-        let increment;
-        let error, previousError;
-        let output;
-        const maxIterations = 200; 
-        const minStep = 0.001; 
-        let iterations;
-
-        const updateXGsForTotalGoals = () => {
-            homeExpectedGoals = Math.max(0.01, totalGoals / 2 + supremacy / 2);
-            awayExpectedGoals = Math.max(0.01, totalGoals / 2 - supremacy / 2);
-        };
-        
-        updateXGsForTotalGoals(); 
-        output = calculateModelProbsFromXG(homeExpectedGoals, awayExpectedGoals, 2.5);
-        increment = (output.modelProbUnderNoExact > normalisedUnder) ? -0.05 : 0.05;
-
-
-        error = Math.abs(output.modelProbUnderNoExact - normalisedUnder);
-        previousError = error + 0.0001; 
-        iterations = 0;
-
-        while (error < previousError && iterations < maxIterations && Math.abs(increment) >= minStep) {
-            totalGoals += increment;
-            totalGoals = Math.max(0.02, totalGoals); 
-            updateXGsForTotalGoals();
-            
-            output = calculateModelProbsFromXG(homeExpectedGoals, awayExpectedGoals, 2.5);
-            previousError = error;
-            error = Math.abs(output.modelProbUnderNoExact - normalisedUnder);
-            
-            if (error >= previousError) { 
-                totalGoals -= increment; 
-                increment /= 2; 
-                if(Math.abs(increment) < minStep) break; 
-                totalGoals += increment; 
-                updateXGsForTotalGoals();
-                output = calculateModelProbsFromXG(homeExpectedGoals, awayExpectedGoals, 2.5);
-                error = Math.abs(output.modelProbUnderNoExact - normalisedUnder); 
+    
+        let totalGoals = 2.5;
+        let supremacy = 0;
+    
+        const bisectionMaxIter = 50;
+    
+        for (let iter = 0; iter < 5; iter++) {
+    
+            let lowTG = 0.5, highTG = 8.0;
+            for (let i = 0; i < bisectionMaxIter; i++) {
+                let midTG = (lowTG + highTG) / 2;
+                if (midTG <= 0) break;
+    
+                const tempHomeXG = Math.max(0.01, midTG / 2 + supremacy / 2);
+                const tempAwayXG = Math.max(0.01, midTG / 2 - supremacy / 2);
+                if (tempHomeXG <= 0 || tempAwayXG <= 0) {
+                    if (supremacy > 0) highTG = midTG; else lowTG = midTG;
+                    continue;
+                }
+    
+                const output = calculateModelProbsFromXG(tempHomeXG, tempAwayXG);
+    
+                if (output.modelProbUnderNoExact > normalisedUnder) {
+                    lowTG = midTG;
+                } else {
+                    highTG = midTG;
+                }
+    
+                if (Math.abs(lowTG - highTG) < 0.0001) break;
             }
-            iterations++;
-        }
-         if (error >= previousError && iterations > 0) { 
-            totalGoals -= increment; 
-         }
-         totalGoals = Math.max(0.02, totalGoals);
-         updateXGsForTotalGoals();
-
-        output = calculateModelProbsFromXG(homeExpectedGoals, awayExpectedGoals, 2.5); 
-        increment = (output.modelProbHomeWinNoDraw > normalisedHomeNoDraw) ? -0.05 : 0.05;
-        error = Math.abs(output.modelProbHomeWinNoDraw - normalisedHomeNoDraw);
-        previousError = error + 0.0001; 
-        iterations = 0;
-
-        const updateXGsForSupremacy = () => {
-            supremacy = Math.max(-(totalGoals - 0.02), Math.min(totalGoals - 0.02, supremacy));
-            homeExpectedGoals = Math.max(0.01, totalGoals / 2 + supremacy / 2);
-            awayExpectedGoals = Math.max(0.01, totalGoals / 2 - supremacy / 2);
-        };
-        updateXGsForSupremacy();
-
-
-        while (error < previousError && iterations < maxIterations && Math.abs(increment) >= minStep) {
-            supremacy += increment;
-            updateXGsForSupremacy();
-            
-            output = calculateModelProbsFromXG(homeExpectedGoals, awayExpectedGoals, 2.5);
-            previousError = error;
-            error = Math.abs(output.modelProbHomeWinNoDraw - normalisedHomeNoDraw);
-
-            if (error >= previousError) {
-                supremacy -= increment;
-                increment /= 2;
-                if(Math.abs(increment) < minStep) break;
-                supremacy += increment;
-                updateXGsForSupremacy();
-                output = calculateModelProbsFromXG(homeExpectedGoals, awayExpectedGoals, 2.5);
-                error = Math.abs(output.modelProbHomeWinNoDraw - normalisedHomeNoDraw);
+            totalGoals = (lowTG + highTG) / 2;
+    
+            let lowSup = -(totalGoals - 0.02);
+            let highSup = totalGoals - 0.02;
+    
+            for (let i = 0; i < bisectionMaxIter; i++) {
+                let midSup = (lowSup + highSup) / 2;
+    
+                const tempHomeXG = Math.max(0.01, totalGoals / 2 + midSup / 2);
+                const tempAwayXG = Math.max(0.01, totalGoals / 2 - midSup / 2);
+                 if (tempHomeXG <= 0 || tempAwayXG <= 0) {
+                    continue;
+                }
+    
+                const output = calculateModelProbsFromXG(tempHomeXG, tempAwayXG);
+                
+                if (output.modelProbHomeWinNoDraw > normalisedHomeNoDraw) {
+                    highSup = midSup;
+                } else {
+                    lowSup = midSup;
+                }
+    
+                if (Math.abs(lowSup - highSup) < 0.0001) break;
             }
-            iterations++;
+            supremacy = (lowSup + highSup) / 2;
         }
-         if (error >= previousError && iterations > 0) {
-            supremacy -= increment;
-         }
-         updateXGsForSupremacy();
-
+    
+        const homeExpectedGoals = Math.max(0.01, totalGoals / 2 + supremacy / 2);
+        const awayExpectedGoals = Math.max(0.01, totalGoals / 2 - supremacy / 2);
+    
         return { homeXG: homeExpectedGoals, awayXG: awayExpectedGoals };
     }
 
@@ -284,37 +255,109 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // --- Simulation Logic ---
-    runButtonEl.addEventListener('click', () => {
+    runButtonEl.addEventListener('click', async () => {
         if (parsedMatches.length === 0) { statusAreaEl.innerHTML = '<p class="text-red-500">No data.</p>'; return; }
         currentNumSims = parseInt(numSimulationsEl.value); if (isNaN(currentNumSims) || currentNumSims <= 0) { statusAreaEl.innerHTML = '<p class="text-red-500">Sims > 0.</p>'; return; }
-        loaderEl.classList.remove('hidden'); statusAreaEl.innerHTML = `<p class="text-blue-500">Running ${currentNumSims} sims...</p>`;
-        resultsContentEl.innerHTML = ""; runButtonEl.disabled = true; parseButtonEl.disabled = true;
         
-        setTimeout(() => {
-            try {
-                simulationAggStats = runSimulation(currentNumSims);
-                try {
-                    displayResults(simulationAggStats, currentNumSims);
-                } catch (displayError) {
-                    console.error("DisplayResults Error:", displayError);
-                    statusAreaEl.innerHTML += `<p class="text-red-500">Error displaying results: ${displayError.message}</p>`;
-                }
-                populateSimGroupSelect(); 
-                statusAreaEl.innerHTML = `<p class="text-green-500">Sim complete! (${currentNumSims} runs)</p>`;
-            } catch (simError) { 
-                console.error("Sim Error:", simError);
-                statusAreaEl.innerHTML = `<p class="text-red-500">Error during simulation: ${simError.message}</p>`;
-                simulationAggStats = {}; 
-                populateSimGroupSelect(); 
-            } finally {
-                loaderEl.classList.add('hidden');
-                runButtonEl.disabled = false;
-                parseButtonEl.disabled = false;
-            }
-        }, 50);
+        progressContainerEl.classList.remove('hidden');
+        progressBarEl.style.width = '0%';
+        progressBarEl.textContent = '0%';
+        statusAreaEl.innerHTML = `<p class="text-blue-500">Running ${currentNumSims} sims...</p>`;
+        resultsContentEl.innerHTML = ""; 
+        runButtonEl.disabled = true; 
+        parseButtonEl.disabled = true;
+        
+        try {
+            simulationAggStats = await runSimulation(currentNumSims);
+            displayResults(simulationAggStats, currentNumSims);
+            populateSimGroupSelect(); 
+            statusAreaEl.innerHTML = `<p class="text-green-500">Sim complete! (${currentNumSims} runs)</p>`;
+        } catch (simError) { 
+            console.error("Sim Error:", simError);
+            statusAreaEl.innerHTML = `<p class="text-red-500">Error during simulation: ${simError.message}</p>`;
+            simulationAggStats = {}; 
+            populateSimGroupSelect(); 
+        } finally {
+            progressContainerEl.classList.add('hidden');
+            runButtonEl.disabled = false;
+            parseButtonEl.disabled = false;
+        }
     });
 
-    function runSimulation(numSims) {
+    function rankTeams(teamNames, fullStats, simMatchResults, rule) {
+        const teamsToSort = teamNames.map(name => ({ ...fullStats[name] }));
+    
+        teamsToSort.sort((a, b) => {
+            if (a.pts !== b.pts) return b.pts - a.pts;
+    
+            const tiedTeamsNames = teamNames.filter(name => fullStats[name].pts === a.pts);
+    
+            let h2hStats = {};
+            if (tiedTeamsNames.length > 1 && rule !== 'simple') {
+                h2hStats = calculateH2HStats(tiedTeamsNames, simMatchResults);
+            }
+    
+            const a_h2h = h2hStats[a.name] || { pts: 0, gd: 0, gf: 0 };
+            const b_h2h = h2hStats[b.name] || { pts: 0, gd: 0, gf: 0 };
+    
+            if (rule === 'h2h') {
+                if (a_h2h.pts !== b_h2h.pts) return b_h2h.pts - a_h2h.pts;
+                if (a_h2h.gd !== b_h2h.gd) return b_h2h.gd - a_h2h.gd;
+                if (a_h2h.gf !== b_h2h.gf) return b_h2h.gf - a_h2h.gf;
+            }
+    
+            if (a.gd !== b.gd) return b.gd - a.gd;
+            if (a.gf !== b.gf) return b.gf - a.gf;
+    
+            if (rule === 'standard') {
+                if (a_h2h.pts !== b_h2h.pts) return b_h2h.pts - a_h2h.pts;
+                if (a_h2h.gd !== b_h2h.gd) return b_h2h.gd - a_h2h.gd;
+                if (a_h2h.gf !== b_h2h.gf) return b_h2h.gf - a_h2h.gf;
+            }
+    
+            return Math.random() - 0.5;
+        });
+    
+        return teamsToSort;
+    }
+    
+    function calculateH2HStats(tiedTeamsNames, simMatchResults) {
+        const h2hStats = {};
+        tiedTeamsNames.forEach(name => {
+            h2hStats[name] = { name: name, pts: 0, gf: 0, ga: 0, gd: 0 };
+        });
+    
+        const h2hMatches = simMatchResults.filter(m =>
+            tiedTeamsNames.includes(m.team1) && tiedTeamsNames.includes(m.team2)
+        );
+    
+        h2hMatches.forEach(m => {
+            const stats1 = h2hStats[m.team1];
+            const stats2 = h2hStats[m.team2];
+            
+            stats1.gf += m.g1;
+            stats1.ga += m.g2;
+            stats2.gf += m.g2;
+            stats2.ga += m.g1;
+    
+            if (m.g1 > m.g2) {
+                stats1.pts += 3;
+            } else if (m.g2 > m.g1) {
+                stats2.pts += 3;
+            } else {
+                stats1.pts += 1;
+                stats2.pts += 1;
+            }
+        });
+    
+        for (const name in h2hStats) {
+            h2hStats[name].gd = h2hStats[name].gf - h2hStats[name].ga;
+        }
+    
+        return h2hStats;
+    }
+
+    async function runSimulation(numSims) {
         const aggStats = {};
         for (const gr in groupedMatches) {
             aggStats[gr] = {
@@ -342,83 +385,99 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
             });
         }
+        
+        const updateInterval = Math.max(1, Math.floor(numSims / 100));
+        const tiebreakerRule = document.querySelector('input[name="tiebreaker"]:checked').value;
+
         for (let i = 0; i < numSims; i++) {
             for (const gK in groupedMatches) {
                 const cGMs = groupedMatches[gK];
                 const tIG = [...(groupTeamNames[gK] || [])];
                 if (tIG.length === 0) continue;
 
-                const sTS = {};
-                tIG.forEach(t => sTS[t] = { name: t, pts: 0, gf: 0, ga: 0, gd: 0, wins: 0, draws: 0, losses: 0 });
+                const sTS = {}; 
+                const simMatchResults = [];
+                tIG.forEach(t => sTS[t] = { name: t, pts: 0, gf: 0, ga: 0, wins: 0, draws: 0, losses: 0 });
                 let cGTG = 0;
 
                 cGMs.forEach(m => {
                     const g1 = poissonRandom(m.lambda1);
                     const g2 = poissonRandom(m.lambda2);
-                    if (sTS[m.team1]) { sTS[m.team1].gf += g1; sTS[m.team1].ga += g2; }
-                    if (sTS[m.team2]) { sTS[m.team2].gf += g2; sTS[m.team2].ga += g1; }
+                    simMatchResults.push({ team1: m.team1, team2: m.team2, g1, g2 });
+
+                    sTS[m.team1].gf += g1; sTS[m.team1].ga += g2;
+                    sTS[m.team2].gf += g2; sTS[m.team2].ga += g1;
                     cGTG += (g1 + g2);
+
                     if (g1 > g2) {
-                        if (sTS[m.team1]) { sTS[m.team1].pts += 3; sTS[m.team1].wins += 1; }
-                        if (sTS[m.team2]) { sTS[m.team2].losses += 1; }
+                        sTS[m.team1].pts += 3; sTS[m.team1].wins += 1;
+                        sTS[m.team2].losses += 1;
                     } else if (g2 > g1) {
-                        if (sTS[m.team2]) { sTS[m.team2].pts += 3; sTS[m.team2].wins += 1; }
-                        if (sTS[m.team1]) { sTS[m.team1].losses += 1; }
+                        sTS[m.team2].pts += 3; sTS[m.team2].wins += 1;
+                        sTS[m.team1].losses += 1;
                     } else {
-                        if (sTS[m.team1]) { sTS[m.team1].pts += 1; sTS[m.team1].draws += 1; }
-                        if (sTS[m.team2]) { sTS[m.team2].pts += 1; sTS[m.team2].draws += 1; }
+                        sTS[m.team1].pts += 1; sTS[m.team1].draws += 1;
+                        sTS[m.team2].pts += 1; sTS[m.team2].draws += 1;
                     }
                 });
-
-                if (aggStats[gK]) aggStats[gK].groupTotalGoalsSims.push(cGTG);
-                const rTs = tIG.map(tN => { const s = sTS[tN] || { name: tN, pts: 0, gf: 0, ga: 0, gd: 0, wins: 0, draws: 0, losses: 0 }; s.gd = s.gf - s.ga; return s; }).sort((a, b) => {
-                    const scoreA = a.pts + (a.gd / 100) + (a.gf / 1000) + (Math.random() / 10000);
-                    const scoreB = b.pts + (b.gd / 100) + (b.gf / 1000) + (Math.random() / 10000);
-                    return scoreB - scoreA;
-                });
-
+                
+                tIG.forEach(t => { sTS[t].gd = sTS[t].gf - sTS[t].ga; });
+                
+                const rTs = rankTeams(tIG, sTS, simMatchResults, tiebreakerRule);
+                 
+                aggStats[gK].groupTotalGoalsSims.push(cGTG);
+                
                 let mGF = -1, mGA = -1;
                 let groupHad9Pts = false, groupHad0Pts = false;
-                rTs.forEach(t => {
-                    mGF = Math.max(mGF, t.gf);
-                    mGA = Math.max(mGA, t.ga);
-                    if (t.pts === 9) groupHad9Pts = true;
-                    if (t.pts === 0) groupHad0Pts = true;
+                tIG.forEach(tName => {
+                    const tStats = sTS[tName];
+                    mGF = Math.max(mGF, tStats.gf);
+                    mGA = Math.max(mGA, tStats.ga);
+                    if (tStats.pts === 9) groupHad9Pts = true;
+                    if (tStats.pts === 0) groupHad0Pts = true;
                 });
-                if (groupHad9Pts && aggStats[gK]) aggStats[gK].anyTeam9PtsCount++;
-                if (groupHad0Pts && aggStats[gK]) aggStats[gK].anyTeam0PtsCount++;
+                if (groupHad9Pts) aggStats[gK].anyTeam9PtsCount++;
+                if (groupHad0Pts) aggStats[gK].anyTeam0PtsCount++;
 
-                if (rTs.length > 0 && aggStats[gK]) {
+                if (rTs.length > 0) {
                     aggStats[gK].firstPlacePtsSims.push(rTs[0].pts);
                     aggStats[gK].firstPlaceGFSims.push(rTs[0].gf);
                 }
-                if (rTs.length >= 4 && aggStats[gK]) {
+                if (rTs.length >= 4) {
                     aggStats[gK].fourthPlacePtsSims.push(rTs[3].pts);
                     aggStats[gK].fourthPlaceGFSims.push(rTs[3].gf);
                 }
 
                 rTs.forEach((t, rI) => {
-                    const tA = aggStats[gK]?.[t.name];
+                    const tA = aggStats[gK][t.name];
+                    const tStats = sTS[t.name];
                     if (tA) {
                         if (rI < 4) tA.posCounts[rI]++;
-                        tA.ptsSims.push(t.pts);
-                        tA.winsSims.push(t.wins || 0);
-                        tA.drawsSims.push(t.draws || 0);
-                        tA.lossesSims.push(t.losses || 0);
-                        tA.gfSims.push(t.gf);
-                        tA.gaSims.push(t.ga);
-                        if (t.gf === mGF && mGF > 0) tA.mostGFCount++;
-                        if (t.ga === mGA && mGA > 0) tA.mostGACount++;
+                        tA.ptsSims.push(tStats.pts);
+                        tA.winsSims.push(tStats.wins);
+                        tA.drawsSims.push(tStats.draws);
+                        tA.lossesSims.push(tStats.losses);
+                        tA.gfSims.push(tStats.gf);
+                        tA.gaSims.push(tStats.ga);
+                        if (tStats.gf === mGF && mGF > 0) tA.mostGFCount++;
+                        if (tStats.ga === mGA && mGA > 0) tA.mostGACount++;
                     }
                 });
 
-                if (rTs.length >= 2 && aggStats[gK]) {
+                if (rTs.length >= 2) {
                     const sFK = `${rTs[0].name}(1st)-${rTs[1].name}(2nd)`;
                     aggStats[gK].straightForecasts[sFK] = (aggStats[gK].straightForecasts[sFK] || 0) + 1;
                     const aDP = [rTs[0].name, rTs[1].name].sort();
                     const aDK = `${aDP[0]}&${aDP[1]}`;
                     aggStats[gK].advancingDoubles[aDK] = (aggStats[gK].advancingDoubles[aDK] || 0) + 1;
                 }
+            }
+            
+            if (i % updateInterval === 0 || i === numSims - 1) {
+                const percentComplete = Math.round(((i + 1) / numSims) * 100);
+                progressBarEl.style.width = `${percentComplete}%`;
+                progressBarEl.textContent = `${percentComplete}%`;
+                await new Promise(resolve => setTimeout(resolve, 0));
             }
         }
         return aggStats;
@@ -460,8 +519,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function calculateOddWithMargin(trueProb, marginDec) {
         if (trueProb <= 0) return "N/A";
         const oddNoMargin = 1 / trueProb;
-        // This is a flawed but simple margin calculation for single-outcome markets.
-        // It will be replaced if a full market overround calculation is implemented.
         return (1 / (trueProb + ((1 - trueProb) / oddNoMargin * marginDec))).toFixed(2);
     }
     
@@ -471,11 +528,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const totalProb = prob1 + prob2;
         if (totalProb === 0) return { odd1: "N/A", odd2: "N/A" };
         
-        // The overround is the bookmaker's total book percentage.
-        // A 5% margin means a 105% book (overround = 1.05).
         const overround = 1 + marginDecimal;
 
-        // Scale the original probabilities up so that their sum equals the desired overround.
         const newProb1 = prob1 * overround / totalProb;
         const newProb2 = prob2 * overround / totalProb;
 
@@ -486,11 +540,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function populateSimGroupSelect() {
-        simGroupSelectEl.innerHTML = '<option value="">-- Select Group --</option>'; 
-        simTeamSelectEl.innerHTML = '<option value="">-- Select Group First --</option>'; 
-        simTeamSelectEl.disabled = true; 
-        customProbInputsContainerEl.classList.add('hidden');
-        document.getElementById('teamStatDistributionContainer').classList.add('hidden');
+        const lang = currentLang;
+        const selectGroupText = lang === 'sr' ? "-- Izaberi Grupu --" : "-- Select Group --";
+        const runSimFirstText = lang === 'sr' ? "-- Prvo pokreni simulaciju --" : "-- Run Sim First --";
+
+        simGroupSelectEl.innerHTML = `<option value="">${Object.keys(simulationAggStats).length > 0 ? selectGroupText : runSimFirstText}</option>`; 
+        
         if (Object.keys(simulationAggStats).length > 0) { 
             Object.keys(simulationAggStats).sort().forEach(groupKey => { 
                 const option = document.createElement('option'); 
@@ -498,16 +553,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 option.textContent = `Group ${groupKey}`; 
                 simGroupSelectEl.appendChild(option); 
             });
-        } else { 
-             simGroupSelectEl.innerHTML = '<option value="">-- Run Sim First --</option>';
         }
     }
 
     simGroupSelectEl.addEventListener('change', () => {
         const selectedGroupKey = simGroupSelectEl.value;
-        simTeamSelectEl.innerHTML = '<option value="">-- Select Team --</option>';
+        const lang = currentLang;
+        const selectTeamText = lang === 'sr' ? "-- Izaberi Tim --" : "-- Select Team --";
+        simTeamSelectEl.innerHTML = `<option value="">${selectTeamText}</option>`;
+        
         customProbInputsContainerEl.classList.add('hidden'); 
-        customProbAndOddResultAreaEl.innerHTML = "Custom prop odds will appear here...";
+        customProbAndOddResultAreaEl.innerHTML = "";
         document.getElementById('teamStatDistributionContainer').classList.add('hidden');
 
         if (selectedGroupKey && groupTeamNames[selectedGroupKey]) {
@@ -573,7 +629,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 for (const value of sortedKeys) {
                     const count = valueCounts[value];
                     const prob = count / numSims;
-                    if (prob < 0.0001) continue; // Skip very rare events for cleaner tables
+                    if (prob < 0.0001) continue;
                     const odd = calculateOddWithMargin(prob, marginDecimal);
                     tableHtml += `<tr>
                                 <td>${value}</td>
@@ -599,7 +655,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (teamName) {
             customProbInputsContainerEl.classList.remove('hidden');
             generateTeamCsvButtonEl.disabled = false;
-            customProbAndOddResultAreaEl.innerHTML = "Define prop and click 'Calc Prop Odd'.";
+            customProbAndOddResultAreaEl.innerHTML = "";
             
             const teamData = simulationAggStats[groupKey]?.[teamName];
             displayTeamStatDistribution(teamData, marginDecimal, currentNumSims);
@@ -624,7 +680,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (Object.keys(simulationAggStats).length === 0 || !simulationAggStats[selectedGroupKey] || currentNumSims === 0) { simulatedOddsStatusEl.textContent = "No sim data. Run sim."; return; }
         
-        const groupData = simulationAggStats[selectedGroupKey], teams = groupTeamNames[selectedGroupKey] || [];
+        const groupData = simulationAggStats[selectedGroupKey];
+        const teams = groupTeamNames[selectedGroupKey] || [];
         if (!groupData || teams.length === 0) { simulatedOddsStatusEl.textContent = "Group data incomplete."; return; }
         
         const mainMarginDecimal = mainMarginPercent / 100;
@@ -771,15 +828,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Clear Button ---
     clearButtonEl.addEventListener('click', () => {
-        matchDataEl.value = ""; numSimulationsEl.value = "10000"; statusAreaEl.innerHTML = ""; resultsContentEl.innerHTML = "Results will appear here...";
+        matchDataEl.value = ""; numSimulationsEl.value = "10000"; statusAreaEl.innerHTML = ""; resultsContentEl.innerHTML = "";
         parsedMatches=[]; allTeams.clear(); groupedMatches={}; groupTeamNames={}; simulationAggStats={}; currentNumSims=0;
-        runButtonEl.disabled=true; loaderEl.classList.add('hidden'); parseButtonEl.disabled=false;
-        csvFileInputEl.value=null; csvFileNameEl.textContent="No file selected.";
+        runButtonEl.disabled=true; 
+        progressContainerEl.classList.add('hidden');
+        parseButtonEl.disabled=false;
+        csvFileInputEl.value=null; csvFileNameEl.textContent= "No file selected.";
         populateSimGroupSelect(); 
-        calculatedOddsResultContentEl.innerHTML = 'Select a group and click "Show/Refresh Market Odds" to see results.';
+        calculatedOddsResultContentEl.innerHTML = '';
         simulatedOddsStatusEl.textContent = "";
         customProbInputsContainerEl.classList.add('hidden');
-        customProbAndOddResultAreaEl.innerHTML = "Custom prop odds will appear here...";
+        customProbAndOddResultAreaEl.innerHTML = "";
         document.getElementById('teamStatDistributionContainer').classList.add('hidden');
         // Clear O/U sections
         document.getElementById('ouTotalGroupGoalsResult').innerHTML = '';
@@ -821,21 +880,21 @@ B Croatia vs Italy 3.00 3.10 2.60 1.55 2.40`;
         const marginDecimal = marginPercent / 100;
         
         if (!groupKey || !teamName) {
-            alert("Please select a group and a team first.");
+            simulatedOddsStatusEl.textContent = "Please select a group and a team first.";
             return;
         }
          if (isNaN(marginPercent) || marginPercent < 0) {
-            alert("Please enter a valid non-negative margin.");
+            simulatedOddsStatusEl.textContent = "Please enter a valid non-negative margin.";
             return;
         }
 
         const teamData = simulationAggStats[groupKey]?.[teamName];
         if (!teamData) {
-            alert("No simulation data found for the selected team.");
+            simulatedOddsStatusEl.textContent = "No simulation data found for the selected team.";
             return;
         }
 
-        let csvContent = "Date,Time,Market,Odd1,Odd2,Odd3\n";
+        let csvContent = `Date,Time,Market,Odd1,Odd2,Odd3\n`;
         const date = "15.6.2025";
         const time = "02:00";
         
@@ -843,61 +902,61 @@ B Croatia vs Italy 3.00 3.10 2.60 1.55 2.40`;
 
         const prob1st = (teamData.posCounts[0] || 0) / currentNumSims;
         const odd1st = calculateOddWithMargin(prob1st, marginDecimal);
-        csvContent += toCsvRow("Pobednik grupe", odd1st);
+        csvContent += toCsvRow("Group Winner", odd1st);
 
         const probQualify = ((teamData.posCounts[0] || 0) + (teamData.posCounts[1] || 0)) / currentNumSims;
         const oddQualify = calculateOddWithMargin(probQualify, marginDecimal);
-        csvContent += toCsvRow("Prolazi grupu", oddQualify);
+        csvContent += toCsvRow("To Qualify", oddQualify);
         
         const probUnbeaten = (teamData.lossesSims.filter(l => l === 0).length) / currentNumSims;
-        csvContent += toCsvRow("Bez poraza u grupi", calculateOddWithMargin(probUnbeaten, marginDecimal));
+        csvContent += toCsvRow("Unbeaten in group", calculateOddWithMargin(probUnbeaten, marginDecimal));
 
         const prob2nd = (teamData.posCounts[1] || 0) / currentNumSims;
         const odd2nd = calculateOddWithMargin(prob2nd, marginDecimal);
-        csvContent += toCsvRow("2. mesto u grupi", odd2nd);
+        csvContent += toCsvRow("2nd in group", odd2nd);
 
         const prob3rd = (teamData.posCounts[2] || 0) / currentNumSims;
         const odd3rd = calculateOddWithMargin(prob3rd, marginDecimal);
-        csvContent += toCsvRow("3. mesto u grupi", odd3rd);
+        csvContent += toCsvRow("3rd in group", odd3rd);
 
         const prob4th = (teamData.posCounts[3] || 0) / currentNumSims;
         const odd4th = calculateOddWithMargin(prob4th, marginDecimal);
-        csvContent += toCsvRow("4. mesto u grupi", odd4th);
+        csvContent += toCsvRow("4th in group", odd4th);
 
         const ptsSims = teamData.ptsSims;
         [0,1,2,3,4,5,6,7,9].forEach(pts => {
             const probPts = ptsSims.filter(p => p === pts).length / currentNumSims;
             const oddPts = calculateOddWithMargin(probPts, marginDecimal);
-            csvContent += toCsvRow(`${pts} bodova u grupi`, oddPts);
+            if (oddPts !== "N/A") csvContent += toCsvRow(`${pts} points in group`, oddPts);
         });
         
         [0, 1, 2, 3].forEach(w => {
             const prob = teamData.winsSims.filter(s => s === w).length / currentNumSims;
-            csvContent += toCsvRow(`${w} pobede u grupi`, calculateOddWithMargin(prob, marginDecimal));
+            if (prob > 0) csvContent += toCsvRow(`${w} wins in group`, calculateOddWithMargin(prob, marginDecimal));
         });
 
         [0, 1, 2, 3].forEach(d => {
             const prob = teamData.drawsSims.filter(s => s === d).length / currentNumSims;
-            csvContent += toCsvRow(`${d} nerešene u grupi`, calculateOddWithMargin(prob, marginDecimal));
+            if (prob > 0) csvContent += toCsvRow(`${d} draws in group`, calculateOddWithMargin(prob, marginDecimal));
         });
 
         [0, 1, 2, 3].forEach(l => {
             const prob = teamData.lossesSims.filter(s => s === l).length / currentNumSims;
-            csvContent += toCsvRow(`${l} poraza u grupi`, calculateOddWithMargin(prob, marginDecimal));
+            if (prob > 0) csvContent += toCsvRow(`${l} losses in group`, calculateOddWithMargin(prob, marginDecimal));
         });
 
         const range1_3 = ptsSims.filter(p => p >= 1 && p <= 3).length / currentNumSims;
-        csvContent += toCsvRow("1-3 boda u grupi", calculateOddWithMargin(range1_3, marginDecimal));
+        csvContent += toCsvRow("1-3 points in group", calculateOddWithMargin(range1_3, marginDecimal));
         const range2_4 = ptsSims.filter(p => p >= 2 && p <= 4).length / currentNumSims;
-        csvContent += toCsvRow("2-4 boda u grupi", calculateOddWithMargin(range2_4, marginDecimal));
+        csvContent += toCsvRow("2-4 points in group", calculateOddWithMargin(range2_4, marginDecimal));
         const range4_6 = ptsSims.filter(p => p >= 4 && p <= 6).length / currentNumSims;
-        csvContent += toCsvRow("4-6 boda u grupi", calculateOddWithMargin(range4_6, marginDecimal));
+        csvContent += toCsvRow("4-6 points in group", calculateOddWithMargin(range4_6, marginDecimal));
         
         [5.5, 6.5, 7.5].forEach(line => {
             const overProb = ptsSims.filter(p => p > line).length / currentNumSims;
             const underProb = ptsSims.filter(p => p < line).length / currentNumSims;
             const { odd1: overOdd, odd2: underOdd } = calculateTwoWayMarketOdds(overProb, underProb, marginDecimal);
-            csvContent += toCsvRow(`Osvojenih bodova u grupi`, line, overOdd, underOdd);
+            csvContent += toCsvRow(`Total points in group`, line, overOdd, underOdd);
         });
 
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -919,39 +978,49 @@ B Croatia vs Italy 3.00 3.10 2.60 1.55 2.40`;
         const marginDecimal = marginPercent / 100;
 
         if (!groupKey) {
-            alert("Please select a group first.");
+            simulatedOddsStatusEl.textContent = "Please select a group first.";
             return;
         }
          if (isNaN(marginPercent) || marginPercent < 0) {
-            alert("Please enter a valid non-negative margin.");
+            simulatedOddsStatusEl.textContent = "Please enter a valid non-negative margin.";
             return;
         }
         const groupData = simulationAggStats[groupKey];
         const teams = groupTeamNames[groupKey] || [];
         if (!groupData || teams.length === 0) {
-            alert("No simulation data found for the selected group.");
+            simulatedOddsStatusEl.textContent = "No simulation data found for the selected group.";
             return;
         }
 
-        let csvContent = `LEAGUE_NAME: Grupa ${groupKey}\n`;
-        const date = "15.6.2025";
-        const time = "02:00";
-        const toCsvRow = (market, submarket, odd1 = '', odd2 = '', odd3 = '') => `${date},${time},"${market}","${submarket}",${odd1},${odd2},${odd3}\n`;
+        const lang = currentLang;
+        let csvContent = `LEAGUE_NAME: Group ${groupKey}\n`;
+        const toCsvRow = (market, submarket, odd1 = '', odd2 = '', odd3 = '') => `${"15.6.2025"},${"02:00"},"${market}","${submarket}",${odd1},${odd2},${odd3}\n`;
         
-        // Group Specials
         const prob9pts = (groupData.anyTeam9PtsCount || 0) / currentNumSims;
-        csvContent += toCsvRow('Bilo koji tim', '9 bodova', calculateOddWithMargin(prob9pts, marginDecimal));
+        csvContent += toCsvRow("Any team", "9 points", calculateOddWithMargin(prob9pts, marginDecimal));
         const prob0pts = (groupData.anyTeam0PtsCount || 0) / currentNumSims;
-        csvContent += toCsvRow('Bilo koji tim', '0 bodova', calculateOddWithMargin(prob0pts, marginDecimal));
+        csvContent += toCsvRow("Any team", "0 points", calculateOddWithMargin(prob0pts, marginDecimal));
+        
+        const totalGoalsSims = groupData.groupTotalGoalsSims || [];
+        if (totalGoalsSims.length > 0) {
+            const avgGoals = totalGoalsSims.reduce((a, b) => a + b, 0) / currentNumSims;
+            const centerLine = Math.round(avgGoals) + 0.5;
+            const lines = [centerLine - 2, centerLine - 1, centerLine, centerLine + 1, centerLine + 2].filter(l => l > 0.5);
+            lines.forEach(line => {
+                const overProb = totalGoalsSims.filter(g => g > line).length / currentNumSims;
+                const underProb = totalGoalsSims.filter(g => g < line).length / currentNumSims;
+                const { odd1: overOdd, odd2: underOdd } = calculateTwoWayMarketOdds(overProb, underProb, marginDecimal);
+                csvContent += toCsvRow("Total goals", "In group", line.toFixed(1), overOdd, underOdd);
+            });
+        }
 
-        // Over/Under for 1st/4th place points
         const firstPtsSims = groupData.firstPlacePtsSims || [];
         if(firstPtsSims.length > 0) {
             [4.5, 6.5, 7.5].forEach(line => {
                 const overProb = firstPtsSims.filter(p => p > line).length / currentNumSims;
                 const underProb = firstPtsSims.filter(p => p < line).length / currentNumSims;
                 const { odd1: overOdd, odd2: underOdd } = calculateTwoWayMarketOdds(overProb, underProb, marginDecimal);
-                csvContent += toCsvRow('Uk. bodova', 'Prvoplasirani tim', line, overOdd, underOdd);
+                csvContent += toCsvRow("Total points", "1st placed team", line, overOdd, underOdd);
             });
         }
         const fourthPtsSims = groupData.fourthPlacePtsSims || [];
@@ -960,30 +1029,27 @@ B Croatia vs Italy 3.00 3.10 2.60 1.55 2.40`;
                 const overProb = fourthPtsSims.filter(p => p > line).length / currentNumSims;
                 const underProb = fourthPtsSims.filter(p => p < line).length / currentNumSims;
                  const { odd1: overOdd, odd2: underOdd } = calculateTwoWayMarketOdds(overProb, underProb, marginDecimal);
-                csvContent += toCsvRow('Uk. bodova', 'Poslednjeplasirani tim', line, overOdd, underOdd);
+                csvContent += toCsvRow("Total points", "4th placed team", line, overOdd, underOdd);
             });
         }
 
-        // Straight Forecasts
         const allSF = Object.entries(groupData.straightForecasts || {}).sort(([,a],[,b])=>b-a);
         allSF.forEach(([key, count]) => {
             const prob = count / currentNumSims;
             const marketName = key.replace(' (1st) - ', '/').replace(' (2nd)', '');
-            csvContent += toCsvRow(marketName, "Tacan poredak 1-2", calculateOddWithMargin(prob, marginDecimal));
+            csvContent += toCsvRow(marketName, "Exact Forecast 1-2", calculateOddWithMargin(prob, marginDecimal));
         });
 
-        // Advancing Doubles
          const allAD = Object.entries(groupData.advancingDoubles || {}).sort(([,a],[,b])=>b-a);
          allAD.forEach(([key, count]) => {
             const prob = count / currentNumSims;
             const marketName = key.replace(' & ', '/');
-            csvContent += toCsvRow(marketName, "Prva dva u grupi", calculateOddWithMargin(prob, marginDecimal));
+            csvContent += toCsvRow(marketName, "Top 2 in group", calculateOddWithMargin(prob, marginDecimal));
         });
 
-        // Group Winner
         teams.forEach(team => {
             const prob = (groupData[team].posCounts[0] || 0) / currentNumSims;
-            csvContent += toCsvRow(team, "Pobednik grupe", calculateOddWithMargin(prob, marginDecimal));
+            csvContent += toCsvRow(team, "Group Winner", calculateOddWithMargin(prob, marginDecimal));
         });
 
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
