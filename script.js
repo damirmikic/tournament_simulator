@@ -20,17 +20,15 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentLang = 'en';
     let calculationMode = 'odds';
 
-    // --- Model Constants ---
-    const HOME_ADVANTAGE_ELO = 80;
-    const ELO_PER_GOAL_ADVANTAGE = 200;
-    const BASELINE_TOTAL_GOALS = 2.7;
-
     // --- DOM Elements ---
     const matchDataEl = document.getElementById('matchData'), numSimulationsEl = document.getElementById('numSimulations'), matchResultsEl = document.getElementById('matchResults');
     const parseButtonEl = document.getElementById('parseButton'), runButtonEl = document.getElementById('runButton'), clearButtonEl = document.getElementById('clearButton');
     const statusAreaEl = document.getElementById('statusArea'), resultsContentEl = document.getElementById('resultsContent');
     const csvFileInputEl = document.getElementById('csvFileInput'), csvFileNameEl = document.getElementById('csvFileName');
     const eloCsvFileInputEl = document.getElementById('eloCsvFileInput'), eloCsvFileNameEl = document.getElementById('eloCsvFileName'), eloDataEl = document.getElementById('eloData');
+    const homeAdvantageEloEl = document.getElementById('homeAdvantageElo');
+    const eloPerGoalEl = document.getElementById('eloPerGoal');
+    const baselineTotalGoalsEl = document.getElementById('baselineTotalGoals');
     const simGroupSelectEl = document.getElementById('simGroupSelect'), simBookieMarginEl = document.getElementById('simBookieMargin');
     const showSimulatedOddsButtonEl = document.getElementById('showSimulatedOddsButton');
     const calculatedOddsResultContentEl = document.getElementById('calculatedOddsResultContent'), simulatedOddsStatusEl = document.getElementById('simulatedOddsStatus');
@@ -76,6 +74,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if(state.resultsData) matchResultsEl.value = state.resultsData;
         if(state.simulations) numSimulationsEl.value = state.simulations;
         if(state.tiebreaker) document.querySelector(`input[name="tiebreaker"][value="${state.tiebreaker}"]`).checked = true;
+        
+        if (state.eloModel) {
+            homeAdvantageEloEl.value = state.eloModel.homeAdvantage || 80;
+            eloPerGoalEl.value = state.eloModel.eloPerGoal || 200;
+            baselineTotalGoalsEl.value = state.eloModel.baselineGoals || 2.7;
+        }
 
         statusAreaEl.innerHTML = `<p class="text-blue-500">Scenario loaded successfully. Please parse the data.</p>`;
     }
@@ -88,7 +92,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 eloData: eloDataEl.value,
                 resultsData: matchResultsEl.value,
                 tiebreaker: document.querySelector('input[name="tiebreaker"]:checked').value,
-                simulations: numSimulationsEl.value
+                simulations: numSimulationsEl.value,
+                eloModel: {
+                    homeAdvantage: homeAdvantageEloEl.value,
+                    eloPerGoal: eloPerGoalEl.value,
+                    baselineGoals: baselineTotalGoalsEl.value
+                }
             };
             localStorage.setItem('tournamentSimulatorState', JSON.stringify(state, null, 2));
             statusAreaEl.innerHTML = `<p class="text-green-500">Scenario saved to browser successfully.</p>`;
@@ -118,7 +127,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 eloData: eloDataEl.value,
                 resultsData: matchResultsEl.value,
                 tiebreaker: document.querySelector('input[name="tiebreaker"]:checked').value,
-                simulations: numSimulationsEl.value
+                simulations: numSimulationsEl.value,
+                eloModel: {
+                    homeAdvantage: homeAdvantageEloEl.value,
+                    eloPerGoal: eloPerGoalEl.value,
+                    baselineGoals: baselineTotalGoalsEl.value
+                }
             };
             const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
             const link = document.createElement("a");
@@ -209,11 +223,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function calculateLambdasFromElo(rating1, rating2) {
-        const eloDiff = (rating1 + HOME_ADVANTAGE_ELO) - rating2;
-        const goalAdvantage = eloDiff / ELO_PER_GOAL_ADVANTAGE;
+        const homeAdvantage = parseFloat(homeAdvantageEloEl.value) || 80;
+        const eloPerGoal = parseFloat(eloPerGoalEl.value) || 200;
+        const baselineGoals = parseFloat(baselineTotalGoalsEl.value) || 2.7;
+
+        const eloDiff = (rating1 + homeAdvantage) - rating2;
+        const goalAdvantage = eloDiff / eloPerGoal;
         
-        let lambda1 = (BASELINE_TOTAL_GOALS + goalAdvantage) / 2;
-        let lambda2 = (BASELINE_TOTAL_GOALS - goalAdvantage) / 2;
+        let lambda1 = (baselineGoals + goalAdvantage) / 2;
+        let lambda2 = (baselineGoals - goalAdvantage) / 2;
         
         return {
             lambda1: Math.max(0.1, lambda1),
@@ -1111,6 +1129,11 @@ document.addEventListener('DOMContentLoaded', () => {
         parseButtonEl.disabled = false;
         csvFileInputEl.value = null; csvFileNameEl.textContent = "No file selected.";
         eloCsvFileInputEl.value = null; eloCsvFileNameEl.textContent = "No file selected.";
+        
+        homeAdvantageEloEl.value = 80;
+        eloPerGoalEl.value = 200;
+        baselineTotalGoalsEl.value = 2.7;
+
         populateSimGroupSelect();
         calculatedOddsResultContentEl.innerHTML = '';
         simulatedOddsStatusEl.textContent = "";
