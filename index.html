@@ -19,6 +19,7 @@
 
         <div class="flex mb-0">
             <button class="tab-button active" onclick="openTab(event, 'simulatorTab')" data-lang="tabGroupSimulator">Group Simulator</button>
+            <button id="knockoutTabButton" class="tab-button" onclick="openTab(event, 'knockoutTab')" data-lang="tabKnockout">Knockout</button>
             <button class="tab-button" onclick="openTab(event, 'oddsCalculatorTab')" data-lang="tabSimulatedOdds">Simulated Group Odds</button>
         </div>
 
@@ -130,9 +131,26 @@
                 <div id="resultsContent" class="text-sm"></div>
             </div>
         </div>
+        
+        <div id="knockoutTab" class="tab-content">
+            <h2 class="text-xl font-semibold text-gray-700 mb-3" data-lang="knockoutTitle">Knockout Stage Setup</h2>
+            <div class="mb-4">
+                <label for="knockoutFormat" class="block text-sm font-medium text-gray-700 mb-1">Select Format:</label>
+                <select id="knockoutFormat" class="w-full md:w-1/2 p-2 border border-gray-300 rounded-md shadow-sm">
+                    <option value="NONE">No Knockout Stage</option>
+                    <option value="16_TEAM_EURO">16-Team (6 Groups, 4 Best 3rd Place) - Euro Style</option>
+                    <option value="16_TEAM_8_GROUP">16-Team (8 Groups, Top 2)</option>
+                    <option value="8_TEAM_ABCD" selected>8-Team (4 Groups, Top 2)</option>
+                </select>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Bracket Structure:</label>
+                <pre id="bracketStructure" class="text-xs p-3 bg-gray-100 rounded-md whitespace-pre-wrap"></pre>
+            </div>
+        </div>
 
         <div id="oddsCalculatorTab" class="tab-content">
-             <h2 class="text-xl font-semibold text-gray-700 mb-3" data-lang="simulatedOddsTitle">Simulated Group Odds</h2>
+             <h2 class="text-xl font-semibold text-gray-700 mb-3" data-lang="simulatedOddsTitle">Simulated Odds</h2>
             <p class="text-gray-600 mb-4 text-sm" data-lang="simulatedOddsDescription">View odds derived from the simulation results. Select a group and apply a margin.</p>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div>
