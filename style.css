@@ -88,3 +88,11 @@ input[type="file"].hidden-file-input {
     color: #6b7280; /* text-gray-500 */
     margin-left: 0.5rem;
 }
+
+.initial-progress-width {
+    width: 0%;
+}
+
+.progress-bar-initial-width {
+    width: 0%;
+}
